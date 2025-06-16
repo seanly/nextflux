@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 
 export default function SpeedMenu() {
   const { playbackRate } = useStore(audioState);
-  const options = ["0.5", "1.0", "1.25", "1.5", "2.0"];
+  const options = ["0.5", "0.7", "0.9", "1.0", "1.3", "1.5", "2.0"];
   const { t } = useTranslation();
   return (
     <Dropdown>

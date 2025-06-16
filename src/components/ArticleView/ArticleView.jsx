@@ -11,7 +11,7 @@ import {
   filteredArticles,
   imageGalleryActive,
 } from "@/stores/articlesStore.js";
-import { Chip, Divider, ScrollShadow } from "@heroui/react";
+import { Chip, Divider, ScrollShadow, Button } from "@heroui/react";
 import EmptyPlaceholder from "@/components/ArticleList/components/EmptyPlaceholder";
 import { cleanTitle, extractFirstImage, getFontSizeClass } from "@/lib/utils";
 import ArticleImage from "@/components/ArticleView/components/ArticleImage.jsx";
@@ -27,6 +27,23 @@ import { cn, getHostname } from "@/lib/utils.js";
 import FeedIcon from "@/components/ui/FeedIcon.jsx";
 import { getArticleById } from "@/db/storage";
 import Attachments from "@/components/ArticleView/components/Attachments.jsx";
+import { audioState, activeAudio } from "@/stores/audioStore.js";
+
+// 添加时间格式转换函数
+const convertTimeToSeconds = (timeStr) => {
+  const [minutes, seconds] = timeStr.split(':').map(Number);
+  return minutes * 60 + seconds;
+};
+
+// 添加时间格式识别函数
+const processTimeStamps = (text) => {
+  const timeRegex = /(\d{1,2}:\d{2})/g;
+  return text.replace(timeRegex, (match) => {
+    const seconds = convertTimeToSeconds(match);
+    return `<a href="#t=${seconds}" class="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors duration-200">${match}</a>`;
+  });
+};
+
 const ArticleView = () => {
   const { t } = useTranslation();
   const { articleId } = useParams();
@@ -136,6 +153,12 @@ const ArticleView = () => {
     enclosure.mime_type?.startsWith("audio/"),
   );
 
+  // 处理文章内容中的时间戳
+  const processContent = (content) => {
+    if (!content) return content;
+    return processTimeStamps(content);
+  };
+
   return (
     <MotionConfig reducedMotion={reduceMotion ? "always" : "never"}>
       <AnimatePresence mode="popLayout" initial={false}>
@@ -193,12 +216,12 @@ const ArticleView = () => {
                   }}
                 >
                   <header
-                    className="article-header"
+                    className="article-header mb-8"
                     style={{ textAlign: titleAlignType }}
                   >
                     <div
                       className={cn(
-                        "text-default-500 text-sm flex items-center gap-1",
+                        "text-default-500 text-sm flex items-center gap-1 mb-3",
                         titleAlignType === "center" ? "justify-center" : "",
                       )}
                     >
@@ -206,7 +229,7 @@ const ArticleView = () => {
                       {$activeArticle?.feed?.title}
                     </div>
                     <h1
-                      className="article-title font-semibold my-2 hover:cursor-pointer leading-tight"
+                      className="article-title font-semibold my-4 hover:cursor-pointer leading-tight"
                       style={{
                         fontSize: `${titleFontSize * fontSize}px`,
                       }}
@@ -215,6 +238,7 @@ const ArticleView = () => {
                         href={$activeArticle?.url}
                         rel="noopener noreferrer"
                         target="_blank"
+                        className="hover:text-primary transition-colors duration-200"
                       >
                         {cleanTitle($activeArticle?.title)}
                       </a>
@@ -228,12 +252,14 @@ const ArticleView = () => {
                       </time>
                     </div>
                   </header>
-                  <Divider className="my-4" />
+                  <Divider className="my-8" />
                   {audioEnclosure && (
-                    <PlayAndPause
-                      source={audioEnclosure}
-                      poster={extractFirstImage($activeArticle)}
-                    />
+                    <div className="mb-8">
+                      <PlayAndPause
+                        source={audioEnclosure}
+                        poster={extractFirstImage($activeArticle)}
+                      />
+                    </div>
                   )}
                   <PhotoProvider
                     bannerVisible={true}
@@ -249,6 +275,14 @@ const ArticleView = () => {
                         "article-content prose dark:prose-invert max-w-none",
                         "prose-pre:rounded-lg prose-pre:shadow-small",
                         "prose-h1:text-[1.5em] prose-h2:text-[1.25em] prose-h3:text-[1.125em] prose-h4:text-[1em]",
+                        "prose-p:leading-relaxed prose-p:my-4",
+                        "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
+                        "prose-img:rounded-lg prose-img:shadow-small",
+                        "prose-blockquote:border-l-4 prose-blockquote:border-primary/20 prose-blockquote:pl-4 prose-blockquote:italic",
+                        "prose-ul:list-disc prose-ul:pl-6",
+                        "prose-ol:list-decimal prose-ol:pl-6",
+                        "prose-li:my-1",
+                        "prose-hr:my-8",
                         getFontSizeClass(fontSize),
                         isStoneTheme() ? "prose-stone" : "",
                       )}
@@ -257,15 +291,85 @@ const ArticleView = () => {
                         textAlign: alignJustify ? "justify" : "left",
                       }}
                     >
-                      {parse($activeArticle?.content, {
+                      {parse(processContent($activeArticle?.content), {
                         replace(domNode) {
                           if (
                             domNode.type === "tag" &&
                             domNode.name === "img"
                           ) {
-                            return <ArticleImage imgNode={domNode} />;
+                            const { src, alt, width, height } = domNode.attribs;
+                            // 检查图片尺寸
+                            const isLargeImage = width > 800 || height > 800;
+                            return (
+                              <div className="my-4">
+                                <div className={cn(
+                                  "relative overflow-hidden rounded-lg shadow-small",
+                                  "max-w-full mx-auto",
+                                  isLargeImage ? "max-h-[300px]" : "max-h-[200px]"
+                                )}>
+                                  <ArticleImage imgNode={domNode} />
+                                  {isLargeImage && (
+                                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent pointer-events-none" />
+                                  )}
+                                </div>
+                                {isLargeImage && (
+                                  <div className="mt-2 text-center">
+                                    <Button
+                                      size="sm"
+                                      variant="flat"
+                                      className="text-default-500"
+                                      onPress={() => {
+                                        const img = document.querySelector(`img[src="${src}"]`);
+                                        if (img) {
+                                          const container = img.closest('.relative');
+                                          if (container) {
+                                            container.style.maxHeight = container.style.maxHeight ? '' : '300px';
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      {img.style.maxHeight ? "展开图片" : "收起图片"}
+                                    </Button>
+                                  </div>
+                                )}
+                                {alt && (
+                                  <div className="mt-2 text-sm text-default-500 text-center">
+                                    {alt}
+                                  </div>
+                                )}
+                              </div>
+                            );
                           }
                           if (domNode.type === "tag" && domNode.name === "a") {
+                            // 处理时间戳链接
+                            if (domNode.attribs.href?.startsWith('#t=')) {
+                              const seconds = parseInt(domNode.attribs.href.replace('#t=', ''));
+                              return (
+                                <a
+                                  href={domNode.attribs.href}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors duration-200"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (audioEnclosure) {
+                                      // 设置当前音频
+                                      activeAudio.set(audioEnclosure);
+                                      // 设置音频状态
+                                      audioState.setKey("loading", true);
+                                      audioState.setKey("title", $activeArticle.title);
+                                      audioState.setKey("artist", $activeArticle.feed.title || "");
+                                      audioState.setKey("paused", false);
+                                      audioState.setKey("artwork", extractFirstImage($activeArticle) || "");
+                                      // 设置播放位置
+                                      audioState.setKey("currentTime", seconds);
+                                      // 更新 URL hash
+                                      window.location.hash = `#t=${seconds}`;
+                                    }
+                                  }}
+                                >
+                                  {domNode.children[0].data}
+                                </a>
+                              );
+                            }
                             return domNode.children.length > 0
                               ? handleLinkWithImg(domNode)
                               : domNode;

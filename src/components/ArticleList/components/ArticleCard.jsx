@@ -3,11 +3,9 @@ import { Clock, Star } from "lucide-react";
 import {
   cleanTitle,
   cn,
-  extractFirstImage,
   extractTextFromHtml,
 } from "@/lib/utils";
 import { formatPublishDate } from "@/lib/format";
-import ArticleCardCover from "./ArticleCardCover.jsx";
 import { handleMarkStatus } from "@/handlers/articleHandlers.js";
 import { useEffect, useMemo, useRef } from "react";
 import { useStore } from "@nanostores/react";
@@ -25,7 +23,6 @@ export default function ArticleCard({ article }) {
   const $feeds = useStore(feeds);
   const {
     markAsReadOnScroll,
-    cardImageSize,
     showFavicon,
     showReadingTime,
     textPreviewLines,
@@ -34,7 +31,6 @@ export default function ArticleCard({ article }) {
   const hasBeenVisible = useRef(false);
   const { ripples, onClear, onPress } = useRipple();
 
-  const imageUrl = useMemo(() => extractFirstImage(article), [article]);
   const feedTitle = useMemo(() => {
     const feed = $feeds.find(f => f.id === article.feedId);
     return feed?.title || article.feedId;
@@ -206,13 +202,7 @@ export default function ArticleCard({ article }) {
                   {previewContent}
                 </span>
               )}
-              {cardImageSize === "large" && (
-                <ArticleCardCover imageUrl={imageUrl} />
-              )}
             </div>
-            {cardImageSize === "small" && (
-              <ArticleCardCover imageUrl={imageUrl} />
-            )}
           </div>
         </div>
       </div>
